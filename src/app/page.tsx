@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { TextPane } from "@/features/analysis/TextPane";
 import { SentimentChart } from "@/features/analysis/SentimentChart";
 import { ArcPicker } from "@/features/target-arcs/ArcPicker";
@@ -10,7 +10,9 @@ import { useAnalyze } from "@/hooks/useAnalyze";
 import { buildArc, type ArcId } from "@/lib/arcs";
 import { detectWeakIndices } from "@/lib/detectWeak";
 import { CopyButton } from "@/components/CopyButton";
+import { FixGrammarButton } from "@/components/FixGrammarButton";
 import { EmptyState } from "@/components/EmptyState";
+import { detectLanguage } from "@/lib/detectLanguage";
 import type { AnalyzeMode, ScoredSentenceDto } from "@/lib/schemas";
 
 const SAMPLE_TEXT =
@@ -25,6 +27,11 @@ export default function Page() {
   const [hovered, setHovered] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [view, setView] = useState<"after" | "before">("after");
+  // Flag set by TextPane's onPaste when the paste replaces (nearly) the whole
+  // textarea. The next onChange payload becomes the new baseline rather than
+  // leaving a stale "original" behind.
+  const wholesalePasteRef = useRef(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const dirty = current !== original;
   const visibleText = view === "before" ? original : current;
@@ -40,6 +47,10 @@ export default function Page() {
     [sentences, target],
   );
 
+  const language = useMemo(() => detectLanguage(visibleText), [visibleText]);
+  const showLanguageWarning =
+    language.confident && !language.isEnglish && mode === "local";
+
   const selected =
     selectedIndex != null && sentences[selectedIndex]
       ? { index: selectedIndex, sentence: sentences[selectedIndex] }
@@ -49,13 +60,25 @@ export default function Page() {
   const selectedAfter = contextAfter(sentences, selected?.index);
 
   const handleChange = (next: string) => {
+    // Wholesale paste: the user just replaced (nearly) all the text. Treat
+    // the new content as a fresh start so Before/After doesn't show stale text.
+    if (wholesalePasteRef.current) {
+      wholesalePasteRef.current = false;
+      setOriginal(next);
+      setCurrent(next);
+      setView("after");
+      setSelectedIndex(null);
+      return;
+    }
     if (view === "before") {
       setView("after");
       setCurrent(next);
       return;
     }
-    // First user edit after scratch paste becomes the new "original" baseline
-    // so "Before/After" compares against the text they actually pasted.
+    // First user edit after a clean state becomes the new "original" baseline.
+    // Don't try to be clever about empty content here: typed-from-scratch
+    // leaves original = "" and we snapshot on the first Apply instead
+    // (see handleApply) so we don't mis-capture a single keystroke.
     if (!dirty && next !== current) {
       setOriginal(current);
     }
@@ -65,7 +88,10 @@ export default function Page() {
   const handleApply = (index: number, newText: string) => {
     const s = sentences[index];
     if (!s || s.start == null || s.end == null) return;
-    if (!dirty) setOriginal(current);
+    // Capture the pre-rewrite text as the baseline if we don't already have
+    // one. This handles "type from scratch, then click Apply" — where dirty
+    // went true on the very first keystroke and we never snapshotted.
+    if (!dirty || original.trim().length === 0) setOriginal(current);
     const source = view === "before" ? original : current;
     const updated = source.slice(0, s.start) + newText + source.slice(s.end);
     setCurrent(updated);
@@ -77,6 +103,16 @@ export default function Page() {
     setCurrent(original);
     setSelectedIndex(null);
     setView("after");
+  };
+
+  const handleFixGrammar = (corrected: string) => {
+    // Treat grammar-fix like an Apply: capture the pre-fix text as the
+    // baseline if we don't already have one, so "Before" shows the typo'd
+    // original and "After" shows the corrected version.
+    if (!dirty || original.trim().length === 0) setOriginal(current);
+    setCurrent(corrected);
+    setView("after");
+    setSelectedIndex(null);
   };
 
   const handleLoadSample = () => {
@@ -103,6 +139,14 @@ export default function Page() {
             dirty={dirty}
             onReset={handleReset}
           />
+          <FixGrammarButton
+            text={current}
+            onFixed={(corrected) => {
+              setActionError(null);
+              handleFixGrammar(corrected);
+            }}
+            onError={(msg) => setActionError(msg)}
+          />
           <CopyButton text={current} label="Copy text" />
           <label className="flex items-center gap-2">
             <input
@@ -119,9 +163,34 @@ export default function Page() {
         <ArcPicker value={arcId} onChange={setArcId} />
       </div>
 
-      {error ? (
-        <div className="border-b border-red-200 bg-red-50 px-6 py-2 text-sm text-red-700">
-          {error}
+      {showLanguageWarning ? (
+        <div className="flex items-center justify-between border-b border-amber-200 bg-amber-50 px-6 py-2 text-sm text-amber-800">
+          <span>
+            Detected <span className="font-medium">{language.name}</span>. Local scoring
+            (VADER) is English-only and will be unreliable for this text.
+          </span>
+          <button
+            type="button"
+            onClick={() => setMode("llm")}
+            className="ml-4 whitespace-nowrap rounded-md border border-amber-400 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+          >
+            Switch to High-accuracy (LLM)
+          </button>
+        </div>
+      ) : null}
+
+      {error || actionError ? (
+        <div className="flex items-center justify-between border-b border-red-200 bg-red-50 px-6 py-2 text-sm text-red-700">
+          <span>{actionError ?? error}</span>
+          {actionError ? (
+            <button
+              type="button"
+              onClick={() => setActionError(null)}
+              className="ml-4 rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs text-red-700 hover:bg-red-100"
+            >
+              Dismiss
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -130,9 +199,14 @@ export default function Page() {
           <TextPane
             value={visibleText}
             onChange={handleChange}
+            onWholesalePaste={() => {
+              wholesalePasteRef.current = true;
+            }}
             sentences={sentences}
             hoveredIndex={hovered}
             onHoverSentence={setHovered}
+            selectedIndex={selectedIndex}
+            onSelectSentence={(i) => setSelectedIndex(i)}
             weakIndices={weakIndices}
             disabled={view === "before"}
           />
@@ -158,6 +232,11 @@ export default function Page() {
             selectedIndex={selectedIndex}
             onSelect={setSelectedIndex}
           />
+          {sentences.length > 0 && selectedIndex == null ? (
+            <p className="rounded-md border border-dashed border-gray-300 bg-white px-3 py-2 text-xs text-gray-500">
+              Tip: click any sentence in the text to generate rewrites for it.
+            </p>
+          ) : null}
           <SuggestionPanel
             selected={selected}
             targetScore={selectedTarget}
