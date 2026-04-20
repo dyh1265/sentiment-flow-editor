@@ -9,8 +9,21 @@ interface TextPaneProps {
   sentences: ScoredSentenceDto[];
   hoveredIndex: number | null;
   onHoverSentence: (index: number | null) => void;
+  selectedIndex?: number | null;
+  /**
+   * Fires when the user clicks inside a sentence. The caller can use this
+   * to open the suggestion panel for that sentence.
+   */
+  onSelectSentence?: (index: number) => void;
   weakIndices?: Set<number>;
   disabled?: boolean;
+  /**
+   * Fires when the user pastes content that replaces (nearly) the entire
+   * textarea \u2013 selection covers \u226580% of content, or the textarea
+   * was empty. The caller should treat the next onChange payload as a new
+   * baseline (reset "original").
+   */
+  onWholesalePaste?: () => void;
 }
 
 /**
@@ -25,9 +38,21 @@ export function TextPane({
   sentences,
   hoveredIndex,
   onHoverSentence,
+  selectedIndex,
+  onSelectSentence,
   weakIndices,
   disabled,
+  onWholesalePaste,
 }: TextPaneProps) {
+  const resolveSentenceAt = (caret: number): number | null => {
+    for (let i = 0; i < sentences.length; i++) {
+      const s = sentences[i];
+      const start = s.start ?? -1;
+      const end = s.end ?? -1;
+      if (start >= 0 && end >= 0 && caret >= start && caret <= end) return i;
+    }
+    return null;
+  };
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
@@ -50,10 +75,17 @@ export function TextPane({
           seg.kind === "sentence" ? (
             <span
               key={i}
-              className={sentenceClass(seg.score, hoveredIndex === seg.index, weakIndices?.has(seg.index))}
+              className={sentenceClass(
+                seg.score,
+                hoveredIndex === seg.index,
+                weakIndices?.has(seg.index),
+                selectedIndex === seg.index,
+              )}
               onMouseEnter={() => onHoverSentence(seg.index)}
               onMouseLeave={() => onHoverSentence(null)}
-              style={{ pointerEvents: "auto" }}
+              onClick={() => onSelectSentence?.(seg.index)}
+              style={{ pointerEvents: "auto", cursor: "pointer" }}
+              title="Click to suggest rewrites"
             >
               {seg.text}
             </span>
@@ -69,6 +101,21 @@ export function TextPane({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onScroll={syncScroll}
+        onClick={(e) => {
+          if (!onSelectSentence) return;
+          const idx = resolveSentenceAt(e.currentTarget.selectionStart ?? 0);
+          if (idx != null) onSelectSentence(idx);
+        }}
+        onPaste={(e) => {
+          if (!onWholesalePaste) return;
+          const ta = e.currentTarget;
+          const pasted = e.clipboardData.getData("text");
+          if (pasted.length < 20) return;
+          const len = ta.value.length;
+          const replacing = ta.selectionEnd - ta.selectionStart;
+          const covers = len === 0 ? 1 : replacing / len;
+          if (covers >= 0.8) onWholesalePaste();
+        }}
         disabled={disabled}
         spellCheck
         placeholder="Paste or type your text here. We'll score each sentence and chart the emotional flow."
@@ -102,7 +149,12 @@ function buildSegments(text: string, sentences: ScoredSentenceDto[]): Segment[] 
   return out;
 }
 
-function sentenceClass(score: number, hovered: boolean, weak: boolean | undefined): string {
+function sentenceClass(
+  score: number,
+  hovered: boolean,
+  weak: boolean | undefined,
+  selected: boolean,
+): string {
   const base = "rounded-sm transition-colors";
   const tint =
     score >= 0.2
@@ -110,8 +162,14 @@ function sentenceClass(score: number, hovered: boolean, weak: boolean | undefine
       : score <= -0.2
         ? "bg-red-100"
         : "bg-amber-50";
-  const hover = hovered ? " ring-2 ring-blue-400" : "";
-  const weakRing = weak && !hovered ? " ring-1 ring-dashed ring-orange-400" : "";
-  return `${base} ${tint}${hover}${weakRing}`;
+  // Selected wins over hovered wins over weak for ring styling.
+  const ring = selected
+    ? " ring-2 ring-blue-600"
+    : hovered
+      ? " ring-2 ring-blue-400"
+      : weak
+        ? " ring-1 ring-dashed ring-orange-400"
+        : "";
+  return `${base} ${tint}${ring}`;
 }
 

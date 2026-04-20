@@ -45,3 +45,13 @@ export const SuggestResponseSchema = z.object({
   suggestions: z.array(SuggestionSchema).min(1),
 });
 export type SuggestResponse = z.infer<typeof SuggestResponseSchema>;
+
+export const FixGrammarRequestSchema = z.object({
+  text: z.string().min(1).max(20_000),
+});
+export type FixGrammarRequest = z.infer<typeof FixGrammarRequestSchema>;
+
+export const FixGrammarResponseSchema = z.object({
+  text: z.string().min(1),
+});
+export type FixGrammarResponse = z.infer<typeof FixGrammarResponseSchema>;
