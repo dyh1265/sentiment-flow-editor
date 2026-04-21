@@ -3,5 +3,5 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm ci --no-audit --no-fund",
-  "regions": ["iad1"]
+  "outputDirectory": "out"
 }

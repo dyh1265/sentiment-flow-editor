@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { FixGrammarResponse } from "@/lib/schemas";
+import { fixGrammar } from "@/lib/client/fixGrammar";
 
 interface FixGrammarButtonProps {
   text: string;
@@ -9,6 +9,11 @@ interface FixGrammarButtonProps {
   /** Optional error handler so the page can surface failures in its own banner. */
   onError?: (message: string) => void;
   className?: string;
+  /**
+   * If provided, clicking uses this cached result instead of calling the LLM.
+   * Used by demo mode so visitors can see grammar-fix behavior without a key.
+   */
+  demoFixed?: string | null;
 }
 
 export function FixGrammarButton({
@@ -16,6 +21,7 @@ export function FixGrammarButton({
   onFixed,
   onError,
   className,
+  demoFixed = null,
 }: FixGrammarButtonProps) {
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
 
@@ -23,18 +29,17 @@ export function FixGrammarButton({
 
   const onClick = async () => {
     setState("loading");
+    if (demoFixed != null) {
+      window.setTimeout(() => {
+        onFixed(demoFixed);
+        setState("done");
+        setTimeout(() => setState("idle"), 1500);
+      }, 400);
+      return;
+    }
     try {
-      const res = await fetch("/api/fix-grammar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `Request failed (${res.status})`);
-      }
-      const json = (await res.json()) as FixGrammarResponse;
-      onFixed(json.text);
+      const result = await fixGrammar({ text });
+      onFixed(result.text);
       setState("done");
       setTimeout(() => setState("idle"), 1500);
     } catch (err) {

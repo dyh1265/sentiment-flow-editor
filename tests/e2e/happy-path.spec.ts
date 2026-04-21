@@ -13,22 +13,20 @@ test("happy path: paste text, see chart, pick arc, toggle before/after, copy", a
   // Empty state is visible until text is loaded.
   await expect(page.getByText("No text yet")).toBeVisible();
 
-  // Click once to load sample and wait for the analyze round-trip to complete.
-  const analyzeResponse = page.waitForResponse(
-    (res) => res.url().endsWith("/api/analyze") && res.status() === 200,
-  );
   await page.getByRole("button", { name: "Load sample text" }).click();
-  await analyzeResponse;
 
-  // Recharts renders an SVG once sentences are populated.
+  // Recharts renders an SVG once sentences are populated. Analysis is now
+  // fully client-side (VADER in the browser) so there is no network response
+  // to wait on -- the chart appearing is the signal that work has finished.
   const chart = page.locator(".recharts-responsive-container").first();
   await expect(chart).toBeVisible();
   await expect(chart.locator("svg")).toBeVisible();
 
-  // Switch arcs and expect another analyze request isn't triggered but the
-  // target dashed line updates. We simply ensure the buttons toggle state.
+  // Switch arcs and toggle state is visually reflected.
   await page.getByRole("button", { name: "Persuasive arc" }).click();
-  await expect(page.getByRole("button", { name: "Persuasive arc" })).toHaveClass(/bg-purple-50/);
+  await expect(page.getByRole("button", { name: "Persuasive arc" })).toHaveClass(
+    /bg-purple-50/,
+  );
   await page.getByRole("button", { name: "Story arc" }).click();
 
   // Edit the text so dirty becomes true and Before/After becomes meaningful.
@@ -37,10 +35,9 @@ test("happy path: paste text, see chart, pick arc, toggle before/after, copy", a
   await editor.press("End");
   await editor.pressSequentially(" Truly.");
 
-  // After the typing debounce fires the chart still renders.
-  await page.waitForResponse(
-    (res) => res.url().endsWith("/api/analyze") && res.status() === 200,
-  );
+  // Let the debounced analyze kick in and update the chart.
+  await page.waitForTimeout(700);
+  await expect(chart.locator("svg")).toBeVisible();
 
   // Before/After swaps the editable state.
   await page.getByRole("button", { name: "Before" }).click();
