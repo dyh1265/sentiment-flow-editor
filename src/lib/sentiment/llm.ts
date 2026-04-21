@@ -1,6 +1,9 @@
+"use client";
+
 import { z } from "zod";
 import { splitSentences } from "@/lib/splitSentences";
-import { getOpenAIClient, getOpenAIModel } from "@/lib/openai";
+import { chat, type ChatMessage } from "@/lib/client/chat";
+import { extractJson } from "@/lib/client/extractJson";
 import { clampScore, labelForScore, type ScoredSentence } from "./types";
 
 const LLMResponseSchema = z.object({
@@ -36,9 +39,14 @@ const SYSTEM_PROMPT = [
   "Return one entry per input sentence, preserve input indexes, and output JSON only.",
 ].join("\n");
 
+const STRICT_REMINDER =
+  "Your previous reply was not valid JSON matching the schema. Respond with ONLY a JSON object " +
+  'of the form {"sentences":[{"index":0,"score":0.0}]} — no code fences, no prose.';
+
 /**
- * Score each sentence with an LLM, returning the same shape as the local scorer.
- * Falls back gracefully (preserves sentence list with score 0) if the model omits an entry.
+ * Score each sentence with an LLM, returning the same shape as the local
+ * scorer. Routes through the active provider (OpenAI / Groq / OpenRouter /
+ * Gemini) via chat(). Throws MissingApiKeyError if no key is configured.
  */
 export async function scoreTextLLM(text: string): Promise<ScoredSentence[]> {
   const spans = splitSentences(text);
@@ -46,32 +54,39 @@ export async function scoreTextLLM(text: string): Promise<ScoredSentence[]> {
 
   const userPayload = spans.map((s, i) => `${i}. ${s.text}`).join("\n");
 
-  const client = getOpenAIClient();
-  const completion = await client.chat.completions.create({
-    model: getOpenAIModel(),
-    temperature: 0,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userPayload },
-    ],
-  });
+  const buildMessages = (extraSystem?: string): ChatMessage[] => [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...(extraSystem ? [{ role: "system" as const, content: extraSystem }] : []),
+    { role: "user", content: userPayload },
+  ];
 
-  const raw = completion.choices[0]?.message?.content ?? "";
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(raw);
-  } catch {
-    throw new Error("LLM returned non-JSON content");
+  const tryParse = (
+    raw: string,
+  ): z.infer<typeof LLMResponseSchema> | null => {
+    // extractJson tolerates markdown fences and preamble that JSON.parse
+    // alone would reject — a common failure mode on OpenRouter free tier
+    // and on small custom-endpoint models.
+    const json = extractJson(raw);
+    if (json === null) return null;
+    const parsed = LLMResponseSchema.safeParse(json);
+    return parsed.success ? parsed.data : null;
+  };
+
+  let raw = await chat(buildMessages(), { temperature: 0, jsonMode: true });
+  let result = tryParse(raw);
+  if (!result) {
+    raw = await chat(buildMessages(STRICT_REMINDER), {
+      temperature: 0,
+      jsonMode: true,
+    });
+    result = tryParse(raw);
   }
-
-  const parsed = LLMResponseSchema.safeParse(parsedJson);
-  if (!parsed.success) {
-    throw new Error("LLM response did not match schema");
+  if (!result) {
+    throw new Error("LLM did not return valid sentiment JSON");
   }
 
   const scoreByIndex = new Map<number, number>();
-  for (const entry of parsed.data.sentences) {
+  for (const entry of result.sentences) {
     scoreByIndex.set(entry.index, clampScore(entry.score));
   }
 

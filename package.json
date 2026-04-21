@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "serve out -l 3000",
+    "preview": "serve out -l 3000",
     "lint": "next lint",
     "format": "prettier --write .",
     "test": "vitest run",
@@ -36,6 +37,7 @@
     "jsdom": "^26.0.0",
     "postcss": "^8.4.49",
     "prettier": "^3.4.2",
+    "serve": "^14.2.4",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

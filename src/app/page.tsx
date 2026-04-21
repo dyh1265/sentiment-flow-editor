@@ -12,7 +12,15 @@ import { detectWeakIndices } from "@/lib/detectWeak";
 import { CopyButton } from "@/components/CopyButton";
 import { FixGrammarButton } from "@/components/FixGrammarButton";
 import { EmptyState } from "@/components/EmptyState";
+import { SettingsModal } from "@/components/SettingsModal";
 import { detectLanguage } from "@/lib/detectLanguage";
+import { loadSettings } from "@/lib/client/apiKey";
+import {
+  DEMO,
+  buildDemoSentences,
+  demoSuggestionsFor,
+  scriptedRewriteIndices,
+} from "@/lib/demo";
 import type { AnalyzeMode, ScoredSentenceDto } from "@/lib/schemas";
 
 const SAMPLE_TEXT =
@@ -32,11 +40,40 @@ export default function Page() {
   // leaving a stale "original" behind.
   const wholesalePasteRef = useRef(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Bumped every time settings are saved so LLM hooks re-run with the new key.
+  const [settingsVersion, setSettingsVersion] = useState(0);
+  // Demo mode swaps in pre-computed LLM output so visitors can see the full
+  // flow without a key. Any text edit flips this off.
+  const [demoMode, setDemoMode] = useState(false);
+  // When a canned rewrite is Applied in demo mode, we stash its
+  // predictedScore here keyed by sentence index. The demo sentence builder
+  // uses this to recompute the chart deterministically — the curve should
+  // *actually* improve for the rewritten sentence, not stay frozen.
+  const [demoOverrides, setDemoOverrides] = useState<Record<number, number>>({});
+  const hasApiKey = useMemo(
+    () => Boolean(loadSettings().apiKey),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settingsVersion],
+  );
 
   const dirty = current !== original;
   const visibleText = view === "before" ? original : current;
 
-  const { sentences, loading, error } = useAnalyze(visibleText, mode);
+  // In demo mode we short-circuit analysis to the cached payload. Feeding an
+  // empty string to useAnalyze keeps it idle so there's no flicker or wasted
+  // work while the cached sentences are on screen.
+  const analyze = useAnalyze(demoMode ? "" : visibleText, mode, settingsVersion);
+  // Rebuild demo sentences from whatever text is currently visible so Applied
+  // rewrites and Before/After toggles stay truthful. Overrides only apply to
+  // the "after" view — "before" shows the pristine demo baseline.
+  const demoSentences = useMemo(() => {
+    if (!demoMode || !visibleText) return [] as ScoredSentenceDto[];
+    return buildDemoSentences(visibleText, view === "after" ? demoOverrides : {});
+  }, [demoMode, visibleText, view, demoOverrides]);
+  const sentences = demoMode ? demoSentences : analyze.sentences;
+  const loading = demoMode ? false : analyze.loading;
+  const error = demoMode ? null : analyze.error;
 
   const target = useMemo(
     () => (arcId ? buildArc(arcId, sentences.length) : null),
@@ -60,6 +97,17 @@ export default function Page() {
   const selectedAfter = contextAfter(sentences, selected?.index);
 
   const handleChange = (next: string) => {
+    // Editing the demo text drops us out of demo mode. The cached scores no
+    // longer match the new text, so we let the normal analyze flow take over.
+    if (demoMode) {
+      setDemoMode(false);
+      setDemoOverrides({});
+      setOriginal("");
+      setCurrent(next);
+      setView("after");
+      setSelectedIndex(null);
+      return;
+    }
     // Wholesale paste: the user just replaced (nearly) all the text. Treat
     // the new content as a fresh start so Before/After doesn't show stale text.
     if (wholesalePasteRef.current) {
@@ -85,7 +133,7 @@ export default function Page() {
     setCurrent(next);
   };
 
-  const handleApply = (index: number, newText: string) => {
+  const handleApply = (index: number, newText: string, predictedScore: number) => {
     const s = sentences[index];
     if (!s || s.start == null || s.end == null) return;
     // Capture the pre-rewrite text as the baseline if we don't already have
@@ -97,6 +145,12 @@ export default function Page() {
     setCurrent(updated);
     setView("after");
     setSelectedIndex(null);
+    // In demo mode, record the suggestion's predicted score so the chart
+    // deterministically redraws with the rewritten sentence's new value.
+    // (Outside demo mode, re-analysis of the new text will compute real scores.)
+    if (demoMode) {
+      setDemoOverrides((prev) => ({ ...prev, [index]: predictedScore }));
+    }
   };
 
   const handleReset = () => {
@@ -113,6 +167,10 @@ export default function Page() {
     setCurrent(corrected);
     setView("after");
     setSelectedIndex(null);
+    // Grammar fix replaces the whole text, so any per-sentence overrides
+    // from earlier Applied rewrites no longer correspond to what's on screen.
+    // Reset them so the chart reflects the fresh pristine-scored demo text.
+    if (demoMode) setDemoOverrides({});
   };
 
   const handleLoadSample = () => {
@@ -120,6 +178,42 @@ export default function Page() {
     setOriginal(SAMPLE_TEXT);
     setView("after");
     setSelectedIndex(null);
+  };
+
+  const handlePlayDemo = () => {
+    setDemoMode(true);
+    setDemoOverrides({});
+    setCurrent(DEMO.sampleText);
+    setOriginal("");
+    setArcId(DEMO.arcId);
+    setView("after");
+    setSelectedIndex(DEMO.scriptedIndex);
+    setHovered(null);
+    setActionError(null);
+    // Intentionally do not flip mode to "llm" — demo mode short-circuits
+    // analysis entirely, and leaving mode alone means the user's preference
+    // is preserved for when they exit the demo.
+  };
+
+  const handleClear = () => {
+    // Only confirm when there's real content on the line — an empty editor
+    // has nothing to lose, and a lone whitespace character shouldn't trigger
+    // a dialog either.
+    if (
+      current.trim().length > 0 &&
+      typeof window !== "undefined" &&
+      !window.confirm("Clear the editor? This will wipe both the text and the Before baseline.")
+    ) {
+      return;
+    }
+    setCurrent("");
+    setOriginal("");
+    setView("after");
+    setSelectedIndex(null);
+    setHovered(null);
+    setActionError(null);
+    setDemoMode(false);
+    setDemoOverrides({});
   };
 
   return (
@@ -139,15 +233,35 @@ export default function Page() {
             dirty={dirty}
             onReset={handleReset}
           />
-          <FixGrammarButton
-            text={current}
-            onFixed={(corrected) => {
-              setActionError(null);
-              handleFixGrammar(corrected);
-            }}
-            onError={(msg) => setActionError(msg)}
-          />
+          {hasApiKey || demoMode ? (
+            <FixGrammarButton
+              text={current}
+              onFixed={(corrected) => {
+                setActionError(null);
+                handleFixGrammar(corrected);
+              }}
+              onError={(msg) => setActionError(msg)}
+              demoFixed={demoMode ? DEMO.grammarFix : null}
+            />
+          ) : null}
           <CopyButton text={current} label="Copy text" />
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={current.length === 0 && original.length === 0}
+            title="Clear the editor and reset Before/After"
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={handlePlayDemo}
+            title="Load a sample story and explore the full flow with pre-computed LLM results"
+            className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm hover:bg-blue-100"
+          >
+            Play demo
+          </button>
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -156,12 +270,73 @@ export default function Page() {
             />
             <span>High-accuracy (LLM)</span>
           </label>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            title="API key and model settings"
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            Settings
+            {!hasApiKey ? (
+              <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />
+            ) : null}
+          </button>
         </div>
       </header>
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSaved={() => setSettingsVersion((v) => v + 1)}
+      />
 
       <div className="border-b border-gray-200 bg-gray-50 px-6 py-2">
         <ArcPicker value={arcId} onChange={setArcId} />
       </div>
+
+      {demoMode ? (
+        <div className="flex items-center justify-between border-b border-blue-200 bg-blue-50 px-6 py-2 text-sm text-blue-800">
+          <span>
+            <span className="mr-2 inline-block rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+              Demo
+            </span>
+            Showing cached LLM output on sample text. Start typing to try your own text
+            {hasApiKey ? "." : " — you'll need an API key for rewrites on custom text."}
+          </span>
+          <button
+            type="button"
+            onClick={handleClear}
+            className="ml-4 whitespace-nowrap rounded-md border border-blue-400 bg-white px-2 py-1 text-xs font-medium text-blue-900 hover:bg-blue-100"
+          >
+            Exit demo
+          </button>
+        </div>
+      ) : null}
+
+      {mode === "llm" && !hasApiKey && !demoMode ? (
+        <div className="flex items-center justify-between border-b border-amber-200 bg-amber-50 px-6 py-2 text-sm text-amber-800">
+          <span>
+            High-accuracy mode needs an OpenAI API key. Add one in Settings, or switch
+            back to local scoring.
+          </span>
+          <div className="ml-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="whitespace-nowrap rounded-md border border-amber-400 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Open Settings
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("local")}
+              className="whitespace-nowrap rounded-md border border-amber-400 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Use local
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {showLanguageWarning ? (
         <div className="flex items-center justify-between border-b border-amber-200 bg-amber-50 px-6 py-2 text-sm text-amber-800">
@@ -214,7 +389,7 @@ export default function Page() {
         <div className="flex min-h-[480px] flex-col gap-3">
           <div className="flex-1">
             {visibleText.trim().length === 0 && !loading ? (
-              <EmptyState onLoadSample={handleLoadSample} />
+              <EmptyState onLoadSample={handleLoadSample} onPlayDemo={handlePlayDemo} />
             ) : (
               <SentimentChart
                 sentences={sentences}
@@ -244,6 +419,17 @@ export default function Page() {
             after={selectedAfter}
             onApply={handleApply}
             onDismiss={() => setSelectedIndex(null)}
+            demoSuggestions={
+              demoMode && arcId ? demoSuggestionsFor(selectedIndex, arcId) : null
+            }
+            scriptedIndices={demoMode && arcId ? scriptedRewriteIndices(arcId) : null}
+            // Locked whenever the user has no real key — demo or not. In demo
+            // the panel still falls back to canned data when it exists for
+            // this sentence (hasCanned overrides the lock). Without canned
+            // data, we show a friendly nudge toward Settings instead of
+            // letting the button fire and throw MissingApiKeyError.
+            llmLocked={!hasApiKey}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
         </div>
       </section>

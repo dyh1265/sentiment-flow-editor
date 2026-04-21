@@ -1,0 +1,70 @@
+name: Deploy to GitHub Pages
+
+on:
+  # Every push to the default branch ships a new static build.
+  push:
+    branches: [master]
+  # Manual trigger from the Actions tab — useful for re-running a deploy
+  # without a new commit.
+  workflow_dispatch:
+
+# GitHub Pages permissions: the job needs to read the repo and write the
+# Pages deployment. id-token is required by actions/deploy-pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one in-flight deployment; new runs cancel queued ones but let the
+# currently-deploying job finish so Pages doesn't see a half-uploaded site.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        # GITHUB_PAGES=true flips next.config.mjs into basePath mode so
+        # every asset URL is prefixed with /sentiment-flow-editor.
+        run: npm run build
+        env:
+          GITHUB_PAGES: "true"
+
+      - name: Add .nojekyll
+        # Without this file, GitHub Pages' Jekyll processor strips folders
+        # that start with an underscore — which means /_next/ (where every
+        # Next.js asset lives) would 404.
+        run: touch out/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

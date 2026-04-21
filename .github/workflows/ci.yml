@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
 
 jobs:
   test:
-    name: Lint, unit, integration, build
+    name: Lint, unit, static build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,11 +23,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Unit + integration tests
+      - name: Unit tests
         run: npm test
 
-      - name: Build
+      - name: Static export build
         run: npm run build
+
+      - name: Verify exported site
+        run: test -f out/index.html
 
   e2e:
     name: Playwright E2E

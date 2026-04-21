@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { Suggestion, SuggestRequest, SuggestResponse } from "@/lib/schemas";
+import type { Suggestion, SuggestRequest } from "@/lib/schemas";
+import { suggestRewrites } from "@/lib/client/suggest";
 
 interface UseSuggestResult {
   suggestions: Suggestion[];
@@ -21,19 +22,10 @@ export function useSuggest(): UseSuggestResult {
     setError(null);
     setSuggestions([]);
     try {
-      const res = await fetch("/api/suggest", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(req),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Suggest failed (${res.status})`);
-      }
-      const data = (await res.json()) as SuggestResponse;
+      const data = await suggestRewrites(req);
       setSuggestions(data.suggestions);
     } catch (err) {
-      setError((err as Error).message);
+      setError(err instanceof Error ? err.message : "Suggest failed");
     } finally {
       setLoading(false);
     }
