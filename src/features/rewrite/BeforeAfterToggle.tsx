@@ -22,7 +22,7 @@ export function BeforeAfterToggle({
 }: BeforeAfterToggleProps) {
   if (!hasOriginal) return null;
   return (
-    <div className="flex items-center gap-2 text-sm">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
       <div className="inline-flex rounded-md border border-gray-300 bg-white p-0.5 shadow-sm">
         <button
           type="button"

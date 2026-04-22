@@ -218,14 +218,14 @@ export default function Page() {
 
   return (
     <main className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-gray-200 px-6 py-3">
+      <header className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
         <div>
-          <h1 className="text-xl font-semibold">Sentiment Flow Editor</h1>
-          <p className="text-xs text-gray-500">
+          <h1 className="text-lg font-semibold sm:text-xl">Sentiment Flow Editor</h1>
+          <p className="hidden text-xs text-gray-500 sm:block">
             Paste text, see the emotional curve per sentence, and rewrite weak beats.
           </p>
         </div>
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
           <BeforeAfterToggle
             view={view}
             onChange={setView}
@@ -290,12 +290,12 @@ export default function Page() {
         onSaved={() => setSettingsVersion((v) => v + 1)}
       />
 
-      <div className="border-b border-gray-200 bg-gray-50 px-6 py-2">
+      <div className="border-b border-gray-200 bg-gray-50 px-4 py-2 sm:px-6">
         <ArcPicker value={arcId} onChange={setArcId} />
       </div>
 
       {demoMode ? (
-        <div className="flex items-center justify-between border-b border-blue-200 bg-blue-50 px-6 py-2 text-sm text-blue-800">
+        <div className="flex flex-col gap-2 border-b border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
           <span>
             <span className="mr-2 inline-block rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
               Demo
@@ -306,7 +306,7 @@ export default function Page() {
           <button
             type="button"
             onClick={handleClear}
-            className="ml-4 whitespace-nowrap rounded-md border border-blue-400 bg-white px-2 py-1 text-xs font-medium text-blue-900 hover:bg-blue-100"
+            className="self-start whitespace-nowrap rounded-md border border-blue-400 bg-white px-2 py-1 text-xs font-medium text-blue-900 hover:bg-blue-100 sm:self-auto"
           >
             Exit demo
           </button>
@@ -314,12 +314,12 @@ export default function Page() {
       ) : null}
 
       {mode === "llm" && !hasApiKey && !demoMode ? (
-        <div className="flex items-center justify-between border-b border-amber-200 bg-amber-50 px-6 py-2 text-sm text-amber-800">
+        <div className="flex flex-col gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
           <span>
             High-accuracy mode needs an OpenAI API key. Add one in Settings, or switch
             back to local scoring.
           </span>
-          <div className="ml-4 flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
@@ -339,7 +339,7 @@ export default function Page() {
       ) : null}
 
       {showLanguageWarning ? (
-        <div className="flex items-center justify-between border-b border-amber-200 bg-amber-50 px-6 py-2 text-sm text-amber-800">
+        <div className="flex flex-col gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
           <span>
             Detected <span className="font-medium">{language.name}</span>. Local scoring
             (VADER) is English-only and will be unreliable for this text.
@@ -347,7 +347,7 @@ export default function Page() {
           <button
             type="button"
             onClick={() => setMode("llm")}
-            className="ml-4 whitespace-nowrap rounded-md border border-amber-400 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+            className="self-start whitespace-nowrap rounded-md border border-amber-400 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 sm:self-auto"
           >
             Switch to High-accuracy (LLM)
           </button>
@@ -355,13 +355,13 @@ export default function Page() {
       ) : null}
 
       {error || actionError ? (
-        <div className="flex items-center justify-between border-b border-red-200 bg-red-50 px-6 py-2 text-sm text-red-700">
+        <div className="flex flex-col gap-2 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
           <span>{actionError ?? error}</span>
           {actionError ? (
             <button
               type="button"
               onClick={() => setActionError(null)}
-              className="ml-4 rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs text-red-700 hover:bg-red-100"
+              className="self-start rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs text-red-700 hover:bg-red-100 sm:self-auto"
             >
               Dismiss
             </button>
@@ -369,8 +369,8 @@ export default function Page() {
         </div>
       ) : null}
 
-      <section className="grid flex-1 grid-cols-1 gap-4 p-4 md:grid-cols-2">
-        <div className="min-h-[480px]">
+      <section className="grid flex-1 grid-cols-1 gap-4 p-3 sm:p-4 md:grid-cols-2">
+        <div className="min-h-[280px] md:min-h-[480px]">
           <TextPane
             value={visibleText}
             onChange={handleChange}
@@ -386,7 +386,7 @@ export default function Page() {
             disabled={view === "before"}
           />
         </div>
-        <div className="flex min-h-[480px] flex-col gap-3">
+        <div className="flex min-h-[380px] flex-col gap-3 md:min-h-[480px]">
           <div className="flex-1">
             {visibleText.trim().length === 0 && !loading ? (
               <EmptyState onLoadSample={handleLoadSample} onPlayDemo={handlePlayDemo} />
