@@ -369,7 +369,7 @@ export default function Page() {
         </div>
       ) : null}
 
-      <section className="grid flex-1 grid-cols-1 gap-4 p-3 sm:p-4 md:grid-cols-2">
+      <section className="flex flex-1 flex-col-reverse gap-4 p-3 sm:p-4 md:grid md:grid-cols-2">
         <div className="min-h-[280px] md:min-h-[480px]">
           <TextPane
             value={visibleText}
