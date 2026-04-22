@@ -44,9 +44,10 @@ export function BeforeAfterToggle({
         <button
           type="button"
           onClick={onReset}
-          className="text-xs text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline"
+          title="Replace the current text with the originally-pasted version"
+          className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-800"
         >
-          Revert to original
+          Revert
         </button>
       ) : null}
     </div>

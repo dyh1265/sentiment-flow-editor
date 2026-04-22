@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { ScoredSentenceDto } from "@/lib/schemas";
 
 interface TextPaneProps {
@@ -58,6 +58,16 @@ export function TextPane({
 
   const segments = useMemo(() => buildSegments(value, sentences), [value, sentences]);
 
+  // Auto-resize the textarea to fit its content so the pane grows with
+  // the document rather than scrolling internally. The highlight overlay
+  // is absolute inset-0 so it mirrors the new height automatically.
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${ta.scrollHeight}px`;
+  }, [value]);
+
   const syncScroll = () => {
     if (!overlayRef.current || !textareaRef.current) return;
     overlayRef.current.scrollTop = textareaRef.current.scrollTop;
@@ -65,7 +75,7 @@ export function TextPane({
   };
 
   return (
-    <div className="relative h-full w-full rounded-md border border-gray-300 bg-white shadow-sm">
+    <div className="relative min-h-[inherit] w-full rounded-md border border-gray-300 bg-white shadow-sm">
       <div
         ref={overlayRef}
         aria-hidden
@@ -119,7 +129,8 @@ export function TextPane({
         disabled={disabled}
         spellCheck
         placeholder="Paste or type your text here. We'll score each sentence and chart the emotional flow."
-        className="relative h-full w-full resize-none rounded-md bg-transparent p-4 font-mono text-[15px] leading-6 text-gray-900 caret-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        rows={1}
+        className="relative block w-full resize-none overflow-hidden rounded-md bg-transparent p-4 font-mono text-[15px] leading-6 text-gray-900 caret-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
       />
     </div>
   );

@@ -87,6 +87,16 @@ export function SentimentChart({
           <XAxis dataKey="label" tick={{ fontSize: 12 }} />
           <YAxis domain={[-1, 1]} ticks={[-1, -0.5, 0, 0.5, 1]} tick={{ fontSize: 12 }} />
           <Tooltip
+            wrapperStyle={{ maxWidth: 220, zIndex: 50, outline: "none" }}
+            contentStyle={{
+              fontSize: 11,
+              padding: "4px 8px",
+              lineHeight: 1.35,
+              borderRadius: 6,
+              whiteSpace: "normal",
+            }}
+            itemStyle={{ padding: 0 }}
+            labelStyle={{ fontSize: 11, marginBottom: 2 }}
             formatter={(v, name) => {
               const nice = typeof v === "number" ? v.toFixed(2) : String(v);
               const label = name === "actual" ? "Sentiment" : "Target";
@@ -96,7 +106,7 @@ export function SentimentChart({
               const row = payload?.[0]?.payload;
               if (!row) return label;
               const txt = sentences[row.index - 1]?.text ?? "";
-              return `${label} ${truncate(txt, 60)}`;
+              return `${label} ${truncate(txt, 24)}`;
             }}
           />
           <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="2 2" />

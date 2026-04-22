@@ -33,7 +33,7 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. Click **Settings** in the top-right to paste an OpenAI API key and pick a model. Local VADER mode works immediately with no key.
+Open [http://localhost:3000](http://localhost:3000). Click **Settings** in the top-right to paste an OpenAI API key and pick a model. Local VADER mode works immediately with no key.
 
 ## Scripts
 
@@ -52,9 +52,11 @@ npm run test:e2e  # playwright e2e (builds + serves first)
 
 Only one, and it's optional:
 
-| Name                  | Required | Default                 | Purpose                                                    |
-| --------------------- | -------- | ----------------------- | ---------------------------------------------------------- |
-| `NEXT_PUBLIC_SITE_URL`| no       | `http://localhost:3000` | Absolute URL used for OpenGraph/Twitter metadata at build. |
+
+| Name                   | Required | Default                 | Purpose                                                    |
+| ---------------------- | -------- | ----------------------- | ---------------------------------------------------------- |
+| `NEXT_PUBLIC_SITE_URL` | no       | `http://localhost:3000` | Absolute URL used for OpenGraph/Twitter metadata at build. |
+
 
 There is no `OPENAI_API_KEY` env var — users add their own key through the Settings UI.
 
@@ -64,13 +66,15 @@ There is no `OPENAI_API_KEY` env var — users add their own key through the Set
 
 ### Supported providers
 
-| Provider | Free tier? | Notes | Where to get a key |
-| --- | --- | --- | --- |
-| **OpenAI** | No (paid) | Reliable JSON mode, best-calibrated for this app's prompts. Suggested models: `gpt-4o-mini`, `gpt-4o`, `gpt-4.1-mini`, `gpt-4.1`. | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| **Groq** | Yes | Very fast hosted inference. **Note:** Groq's API doesn't send permissive CORS headers, so browser-origin calls are blocked. Works only if you proxy through your own server. | [console.groq.com/keys](https://console.groq.com/keys) |
-| **OpenRouter** | Partial | One key, many models. Supports browser CORS. Models ending in `:free` share a global pool and hit 429s often during peak hours. Suggested free: `meta-llama/llama-3.3-70b-instruct:free`, `deepseek/deepseek-chat-v3-0324:free`. Adding $10 of credit unlocks paid variants that cost pennies. | [openrouter.ai/keys](https://openrouter.ai/keys) |
-| **Google Gemini** | Yes, generous | Your own quota (not a shared pool). ~15 RPM and ~1M tokens/day on `gemini-2.5-flash-lite`. Suggested: `gemini-2.5-flash-lite`, `gemini-2.5-flash`, `gemini-2.0-flash`. | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
-| **Custom (OpenAI-compatible)** | Depends on endpoint | You supply the Base URL. Works with anything that speaks the OpenAI wire protocol — `https://openrouter.ai/api/v1`, `https://api.together.xyz/v1`, `https://api.mistral.ai/v1`, `http://localhost:11434/v1` (Ollama), LM Studio, self-hosted proxies, etc. | Whichever provider you point at |
+
+| Provider                       | Free tier?          | Notes                                                                                                                                                                                                                                                                                          | Where to get a key                                                   |
+| ------------------------------ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **OpenAI**                     | No (paid)           | Reliable JSON mode, best-calibrated for this app's prompts. Suggested models: `gpt-4o-mini`, `gpt-4o`, `gpt-4.1-mini`, `gpt-4.1`.                                                                                                                                                              | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| **Groq**                       | Yes                 | Very fast hosted inference. **Note:** Groq's API doesn't send permissive CORS headers, so browser-origin calls are blocked. Works only if you proxy through your own server.                                                                                                                   | [console.groq.com/keys](https://console.groq.com/keys)               |
+| **OpenRouter**                 | Partial             | One key, many models. Supports browser CORS. Models ending in `:free` share a global pool and hit 429s often during peak hours. Suggested free: `meta-llama/llama-3.3-70b-instruct:free`, `deepseek/deepseek-chat-v3-0324:free`. Adding $10 of credit unlocks paid variants that cost pennies. | [openrouter.ai/keys](https://openrouter.ai/keys)                     |
+| **Google Gemini**              | Yes, generous       | Your own quota (not a shared pool). ~15 RPM and ~1M tokens/day on `gemini-2.5-flash-lite`. Suggested: `gemini-2.5-flash-lite`, `gemini-2.5-flash`, `gemini-2.0-flash`.                                                                                                                         | [aistudio.google.com/apikey](https://aistudio.google.com/apikey)     |
+| **Custom (OpenAI-compatible)** | Depends on endpoint | You supply the Base URL. Works with anything that speaks the OpenAI wire protocol — `https://openrouter.ai/api/v1`, `https://api.together.xyz/v1`, `https://api.mistral.ai/v1`, `http://localhost:11434/v1` (Ollama), LM Studio, self-hosted proxies, etc.                                     | Whichever provider you point at                                      |
+
 
 OpenAI / Groq / OpenRouter / Custom all speak the OpenAI wire protocol and go through the same SDK client. Gemini has its own REST API, wrapped in `src/lib/client/chat.ts` behind the same `chat()` interface so the three consumer modules (`suggest`, `fixGrammar`, `scoreTextLLM`) don't care which provider is active. The model field is a free-text input with a datalist, so you can paste any model id the provider supports even if it's not in the suggestions.
 
@@ -95,7 +99,7 @@ Because the build output is a pile of static files, you can host it almost anywh
 docker compose up --build
 ```
 
-Then open <http://localhost:3000>. The image is `nginx:1.27-alpine` serving the exported site; there is no Node runtime in the final image.
+Then open [http://localhost:3000](http://localhost:3000). The image is `nginx:1.27-alpine` serving the exported site; there is no Node runtime in the final image.
 
 ```bash
 docker build -t sentiment-flow-editor .
@@ -179,3 +183,4 @@ docker/
   nginx.conf                    static-site nginx config
 Dockerfile                      Node build stage -> nginx runtime stage
 ```
+
