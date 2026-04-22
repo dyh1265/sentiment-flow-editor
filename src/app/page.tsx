@@ -250,42 +250,50 @@ export default function Page() {
               />
             ) : null}
             <CopyButton text={current} label="Copy text" />
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={current.length === 0 && original.length === 0}
-              title="Clear the editor and reset Before/After"
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={handlePlayDemo}
-              title="Load a sample story and explore the full flow with pre-computed LLM results"
-              className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm hover:bg-blue-100"
-            >
-              Play demo
-            </button>
+            {current.length > 0 || original.length > 0 ? (
+              <button
+                type="button"
+                onClick={handleClear}
+                title="Clear the editor and reset Before/After"
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+              >
+                Clear
+              </button>
+            ) : null}
+            {!demoMode ? (
+              <button
+                type="button"
+                onClick={handlePlayDemo}
+                title="Load a sample story and explore the full flow with pre-computed LLM results"
+                className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm hover:bg-blue-100"
+              >
+                Play demo
+              </button>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2">
+            <label
+              className="flex items-center gap-2"
+              title="Uses an AI model (LLM) for nuanced per-sentence scoring. Requires an API key."
+            >
               <input
                 type="checkbox"
                 checked={mode === "llm"}
                 onChange={(e) => setMode(e.target.checked ? "llm" : "local")}
               />
-              <span>High-accuracy (LLM)</span>
+              <span>High accuracy (AI)</span>
             </label>
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
-              title="API key and model settings"
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+              title={hasApiKey ? "API key and model settings" : "No API key set — click to add one"}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
             >
               Settings
               {!hasApiKey ? (
-                <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />
+                <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-white">
+                  !
+                </span>
               ) : null}
             </button>
           </div>
@@ -324,7 +332,7 @@ export default function Page() {
       {mode === "llm" && !hasApiKey && !demoMode ? (
         <div className="flex flex-col gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
           <span>
-            High-accuracy mode needs an OpenAI API key. Add one in Settings, or switch
+            High accuracy needs an AI provider API key. Add one in Settings, or switch
             back to local scoring.
           </span>
           <div className="flex flex-wrap gap-2">
@@ -357,7 +365,7 @@ export default function Page() {
             onClick={() => setMode("llm")}
             className="self-start whitespace-nowrap rounded-md border border-amber-400 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 sm:self-auto"
           >
-            Switch to High-accuracy (LLM)
+            Switch to High accuracy (AI)
           </button>
         </div>
       ) : null}
@@ -378,7 +386,32 @@ export default function Page() {
       ) : null}
 
       <section className="flex flex-1 flex-col gap-4 p-3 sm:p-4 md:grid md:grid-cols-2">
-        <div className="order-2 min-h-[560px] md:order-none md:min-h-[480px]">
+        <div className="order-2 flex min-h-[560px] flex-col gap-2 md:order-none md:min-h-[480px]">
+          {sentences.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-600">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-green-200 ring-1 ring-green-400" />
+                Positive
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-amber-100 ring-1 ring-amber-300" />
+                Neutral
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-red-200 ring-1 ring-red-400" />
+                Negative
+              </span>
+              {arcId ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-white ring-1 ring-dashed ring-orange-500" />
+                  Weak for this arc
+                </span>
+              ) : null}
+              <span className="ml-auto hidden text-gray-400 sm:inline">
+                Tap a sentence to rewrite
+              </span>
+            </div>
+          ) : null}
           <TextPane
             value={visibleText}
             onChange={handleChange}
@@ -415,11 +448,6 @@ export default function Page() {
             selectedIndex={selectedIndex}
             onSelect={setSelectedIndex}
           />
-          {sentences.length > 0 && selectedIndex == null ? (
-            <p className="rounded-md border border-dashed border-gray-300 bg-white px-3 py-2 text-xs text-gray-500">
-              Tip: click any sentence in the text to generate rewrites for it.
-            </p>
-          ) : null}
           <SuggestionPanel
             selected={selected}
             targetScore={selectedTarget}
