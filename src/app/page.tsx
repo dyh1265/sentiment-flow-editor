@@ -225,62 +225,70 @@ export default function Page() {
             Paste text, see the emotional curve per sentence, and rewrite weak beats.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-          <BeforeAfterToggle
-            view={view}
-            onChange={setView}
-            hasOriginal={original.length > 0}
-            dirty={dirty}
-            onReset={handleReset}
-          />
-          {hasApiKey || demoMode ? (
-            <FixGrammarButton
-              text={current}
-              onFixed={(corrected) => {
-                setActionError(null);
-                handleFixGrammar(corrected);
-              }}
-              onError={(msg) => setActionError(msg)}
-              demoFixed={demoMode ? DEMO.grammarFix : null}
-            />
+        <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2">
+          {original.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <BeforeAfterToggle
+                view={view}
+                onChange={setView}
+                hasOriginal={original.length > 0}
+                dirty={dirty}
+                onReset={handleReset}
+              />
+            </div>
           ) : null}
-          <CopyButton text={current} label="Copy text" />
-          <button
-            type="button"
-            onClick={handleClear}
-            disabled={current.length === 0 && original.length === 0}
-            title="Clear the editor and reset Before/After"
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Clear
-          </button>
-          <button
-            type="button"
-            onClick={handlePlayDemo}
-            title="Load a sample story and explore the full flow with pre-computed LLM results"
-            className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm hover:bg-blue-100"
-          >
-            Play demo
-          </button>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={mode === "llm"}
-              onChange={(e) => setMode(e.target.checked ? "llm" : "local")}
-            />
-            <span>High-accuracy (LLM)</span>
-          </label>
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            title="API key and model settings"
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-          >
-            Settings
-            {!hasApiKey ? (
-              <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />
+          <div className="flex flex-wrap items-center gap-2">
+            {hasApiKey || demoMode ? (
+              <FixGrammarButton
+                text={current}
+                onFixed={(corrected) => {
+                  setActionError(null);
+                  handleFixGrammar(corrected);
+                }}
+                onError={(msg) => setActionError(msg)}
+                demoFixed={demoMode ? DEMO.grammarFix : null}
+              />
             ) : null}
-          </button>
+            <CopyButton text={current} label="Copy text" />
+            <button
+              type="button"
+              onClick={handleClear}
+              disabled={current.length === 0 && original.length === 0}
+              title="Clear the editor and reset Before/After"
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={handlePlayDemo}
+              title="Load a sample story and explore the full flow with pre-computed LLM results"
+              className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm hover:bg-blue-100"
+            >
+              Play demo
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={mode === "llm"}
+                onChange={(e) => setMode(e.target.checked ? "llm" : "local")}
+              />
+              <span>High-accuracy (LLM)</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              title="API key and model settings"
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            >
+              Settings
+              {!hasApiKey ? (
+                <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />
+              ) : null}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -370,7 +378,7 @@ export default function Page() {
       ) : null}
 
       <section className="flex flex-1 flex-col gap-4 p-3 sm:p-4 md:grid md:grid-cols-2">
-        <div className="order-2 min-h-[280px] md:order-none md:min-h-[480px]">
+        <div className="order-2 min-h-[560px] md:order-none md:min-h-[480px]">
           <TextPane
             value={visibleText}
             onChange={handleChange}
