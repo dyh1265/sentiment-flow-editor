@@ -369,8 +369,8 @@ export default function Page() {
         </div>
       ) : null}
 
-      <section className="flex flex-1 flex-col-reverse gap-4 p-3 sm:p-4 md:grid md:grid-cols-2">
-        <div className="min-h-[280px] md:min-h-[480px]">
+      <section className="flex flex-1 flex-col gap-4 p-3 sm:p-4 md:grid md:grid-cols-2">
+        <div className="order-2 min-h-[280px] md:order-none md:min-h-[480px]">
           <TextPane
             value={visibleText}
             onChange={handleChange}
@@ -386,8 +386,8 @@ export default function Page() {
             disabled={view === "before"}
           />
         </div>
-        <div className="flex min-h-[380px] flex-col gap-3 md:min-h-[480px]">
-          <div className="flex-1">
+        <div className="order-1 flex flex-col gap-3 md:order-none md:min-h-[480px]">
+          <div className="h-[240px] shrink-0 md:h-auto md:min-h-0 md:flex-1">
             {visibleText.trim().length === 0 && !loading ? (
               <EmptyState onLoadSample={handleLoadSample} onPlayDemo={handlePlayDemo} />
             ) : (
