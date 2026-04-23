@@ -11,17 +11,20 @@ import { buildArc, type ArcId } from "@/lib/arcs";
 import { detectWeakIndices } from "@/lib/detectWeak";
 import { CopyButton } from "@/components/CopyButton";
 import { FixGrammarButton } from "@/components/FixGrammarButton";
+import { AutoFixButton } from "@/components/AutoFixButton";
 import { EmptyState } from "@/components/EmptyState";
 import { SettingsModal } from "@/components/SettingsModal";
 import { detectLanguage } from "@/lib/detectLanguage";
 import { loadSettings } from "@/lib/client/apiKey";
+import { ARCS } from "@/lib/arcs";
 import {
   DEMO,
   buildDemoSentences,
   demoSuggestionsFor,
   scriptedRewriteIndices,
 } from "@/lib/demo";
-import type { AnalyzeMode, ScoredSentenceDto } from "@/lib/schemas";
+import type { ScoredSentenceDto } from "@/lib/schemas";
+import type { AutoFixRewrite } from "@/lib/client/autoFix";
 
 const SAMPLE_TEXT =
   "We started the project full of hope. Then the first prototype failed spectacularly. " +
@@ -30,7 +33,6 @@ const SAMPLE_TEXT =
 export default function Page() {
   const [current, setCurrent] = useState("");
   const [original, setOriginal] = useState<string>("");
-  const [mode, setMode] = useState<AnalyzeMode>("local");
   const [arcId, setArcId] = useState<ArcId | null>("story");
   const [hovered, setHovered] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -63,7 +65,7 @@ export default function Page() {
   // In demo mode we short-circuit analysis to the cached payload. Feeding an
   // empty string to useAnalyze keeps it idle so there's no flicker or wasted
   // work while the cached sentences are on screen.
-  const analyze = useAnalyze(demoMode ? "" : visibleText, mode, settingsVersion);
+  const analyze = useAnalyze(demoMode ? "" : visibleText, "local", settingsVersion);
   // Rebuild demo sentences from whatever text is currently visible so Applied
   // rewrites and Before/After toggles stay truthful. Overrides only apply to
   // the "after" view — "before" shows the pristine demo baseline.
@@ -85,8 +87,7 @@ export default function Page() {
   );
 
   const language = useMemo(() => detectLanguage(visibleText), [visibleText]);
-  const showLanguageWarning =
-    language.confident && !language.isEnglish && mode === "local";
+  const showLanguageWarning = language.confident && !language.isEnglish;
 
   const selected =
     selectedIndex != null && sentences[selectedIndex]
@@ -150,6 +151,37 @@ export default function Page() {
     // (Outside demo mode, re-analysis of the new text will compute real scores.)
     if (demoMode) {
       setDemoOverrides((prev) => ({ ...prev, [index]: predictedScore }));
+    }
+  };
+
+  const handleAutoFix = (rewrites: AutoFixRewrite[]) => {
+    if (rewrites.length === 0) return;
+    // Same baseline-snapshot rule as handleApply: capture pre-rewrite text
+    // exactly once so Before/After survives a bulk fix.
+    if (!dirty || original.trim().length === 0) setOriginal(current);
+    const source = view === "before" ? original : current;
+    // Apply in reverse offset order so earlier edits don't invalidate the
+    // [start, end) ranges of sentences further down.
+    const sorted = [...rewrites].sort((a, b) => {
+      const aStart = sentences[a.index]?.start ?? 0;
+      const bStart = sentences[b.index]?.start ?? 0;
+      return bStart - aStart;
+    });
+    let updated = source;
+    for (const r of sorted) {
+      const s = sentences[r.index];
+      if (!s || s.start == null || s.end == null) continue;
+      updated = updated.slice(0, s.start) + r.newText + updated.slice(s.end);
+    }
+    setCurrent(updated);
+    setView("after");
+    setSelectedIndex(null);
+    if (demoMode) {
+      setDemoOverrides((prev) => {
+        const next = { ...prev };
+        for (const r of rewrites) next[r.index] = r.predictedScore;
+        return next;
+      });
     }
   };
 
@@ -249,6 +281,21 @@ export default function Page() {
                 demoFixed={demoMode ? DEMO.grammarFix : null}
               />
             ) : null}
+            {(hasApiKey || demoMode) && arcId && target && weakIndices.size > 0 ? (
+              <AutoFixButton
+                sentences={sentences}
+                weakIndices={Array.from(weakIndices).sort((a, b) => a - b)}
+                targets={target}
+                mode="local"
+                arcLabel={ARCS[arcId].name}
+                onFixed={(rewrites) => {
+                  setActionError(null);
+                  handleAutoFix(rewrites);
+                }}
+                onError={(msg) => setActionError(msg)}
+                demoRewrites={demoMode ? DEMO.rewritesByArc[arcId] : null}
+              />
+            ) : null}
             <CopyButton text={current} label="Copy text" />
             {current.length > 0 || original.length > 0 ? (
               <button
@@ -272,17 +319,6 @@ export default function Page() {
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <label
-              className="flex items-center gap-2"
-              title="Uses an AI model (LLM) for nuanced per-sentence scoring. Requires an API key."
-            >
-              <input
-                type="checkbox"
-                checked={mode === "llm"}
-                onChange={(e) => setMode(e.target.checked ? "llm" : "local")}
-              />
-              <span>High accuracy (AI)</span>
-            </label>
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
@@ -329,31 +365,6 @@ export default function Page() {
         </div>
       ) : null}
 
-      {mode === "llm" && !hasApiKey && !demoMode ? (
-        <div className="flex flex-col gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
-          <span>
-            High accuracy needs an AI provider API key. Add one in Settings, or switch
-            back to local scoring.
-          </span>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className="whitespace-nowrap rounded-md border border-amber-400 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
-            >
-              Open Settings
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("local")}
-              className="whitespace-nowrap rounded-md border border-amber-400 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
-            >
-              Use local
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {showLanguageWarning ? (
         <div className="flex flex-col gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
           <span>
@@ -362,10 +373,10 @@ export default function Page() {
           </span>
           <button
             type="button"
-            onClick={() => setMode("llm")}
+            onClick={() => setSettingsOpen(true)}
             className="self-start whitespace-nowrap rounded-md border border-amber-400 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 sm:self-auto"
           >
-            Switch to High accuracy (AI)
+            Open Settings for rewrite tools
           </button>
         </div>
       ) : null}
